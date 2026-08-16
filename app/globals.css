@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0a0908;
+  --color-cream: #f5ead7;
+  --color-accent: #f08a38;
+  --color-accent-soft: #ffb05d;
+  --color-muted: rgba(255, 255, 255, 0.7);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  background: var(--color-ink);
+  color: white;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hero-bg {
+  background-image: url("/bg/scene-wide.png");
+}
+
+@media (orientation: portrait) {
+  .hero-bg {
+    background-image: url("/bg/scene-tall.png");
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.vinyl-spin {
+  animation: spin 8s linear infinite;
+  animation-play-state: paused;
+}
+
+.clock-colon {
+  animation: blink 1s steps(1, end) infinite;
+}
+
+.seek-input {
+  touch-action: none;
+}
+
+.youtube-frame {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: block;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vinyl-spin,
+  .clock-colon {
+    animation: none;
+  }
+}
