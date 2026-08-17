@@ -2,6 +2,8 @@ import MusicPlayer from "./music-player";
 import Clock from "./clock";
 import AmbiancePanel from "./ambiance-panel";
 import SleepTimer from "./sleep-timer";
+import VoiceAssistant from "./voice-assistant";
+import RadioCallAI from "./radio-call-ai";
 import { Radio, TvMinimalPlay } from "lucide-react";
 
 function GrainOverlay() {
@@ -37,6 +39,8 @@ function TopRow() {
       </div>
 
       <div className="flex items-center gap-2">
+        <RadioCallAI />
+        <VoiceAssistant />
         <AmbiancePanel />
         <SleepTimer />
         <div className="hidden sm:flex gap-1.5">

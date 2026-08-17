@@ -35,6 +35,8 @@ declare namespace YT {
     getCurrentTime(): number;
     getDuration(): number;
     getPlayerState(): number;
+    setVolume(volume: number): void;
+    getVolume(): number;
     destroy(): void;
   }
   const PlayerState: {
@@ -227,6 +229,154 @@ export default function MusicPlayer(_: Props) {
     return () => window.removeEventListener("sleep-timer-expired", handleSleepTimer);
   }, []);
 
+  // Broadcast current track info to voice assistant
+  useEffect(() => {
+    if (current) {
+      window.dispatchEvent(
+        new CustomEvent("radio-current-track-info", {
+          detail: {
+            title: current.title,
+            artist: current.artist,
+            film: current.film,
+            playlistName,
+            playing,
+          },
+        })
+      );
+    }
+  }, [current, playlistName, playing]);
+
+  const seek = useCallback((value: number) => {
+    const target = (playerRef.current?.getDuration() || duration || current?.duration || 0) * value;
+    if (playerRef.current && target >= 0 && typeof playerRef.current.seekTo === "function") {
+      playerRef.current.seekTo(target, true);
+      setElapsed(target);
+      setProgress(value);
+    }
+  }, [current?.duration, duration]);
+
+  const togglePlay = useCallback(() => {
+    const p = playerRef.current;
+    if (!p || !current?.videoId) return;
+    if (typeof p.playVideo !== "function") return;
+    try {
+      const state = typeof p.getPlayerState === "function" ? p.getPlayerState() : -1;
+      if (state === window.YT?.PlayerState.PLAYING) {
+        p.pauseVideo();
+      } else {
+        p.playVideo();
+      }
+    } catch {
+      p.playVideo();
+    }
+  }, [current?.videoId]);
+
+  const changePlaylist = useCallback((name: string) => {
+    ambientEngine.stopAllVoices();
+    ambientEngine.playCassetteClick();
+    ambientEngine.playRadioTuningStatic();
+    setPlaylistName(name);
+    setTrackIndex(0);
+    setPlaying(false);
+    setProgress(0);
+    setElapsed(0);
+    setDuration(0);
+  }, []);
+
+  // Handle voice commands
+  useEffect(() => {
+    const handleVoicePlay = () => {
+      const p = playerRef.current;
+      if (p && typeof p.playVideo === "function") {
+        p.playVideo();
+      }
+    };
+
+    const handleVoicePause = () => {
+      const p = playerRef.current;
+      if (p && typeof p.pauseVideo === "function") {
+        p.pauseVideo();
+      }
+    };
+
+    const handleVoiceNext = () => next();
+    const handleVoicePrev = () => previous();
+    const handleVoiceRestart = () => seek(0);
+
+    const handleVoiceSelectPlaylist = (e: any) => {
+      const name = e.detail?.playlistName;
+      if (name && playlists[name]) {
+        changePlaylist(name);
+        window.setTimeout(() => {
+          const p = playerRef.current;
+          const targetSong = playlists[name]?.[0];
+          if (p && targetSong?.videoId && typeof p.loadVideoById === "function") {
+            p.loadVideoById(targetSong.videoId);
+            p.playVideo();
+            setPlaying(true);
+          }
+        }, 150);
+      }
+    };
+
+    const handleVoiceSelectTrack = (e: any) => {
+      const { playlistName: targetPlaylist, trackIndex: targetIndex } = e.detail || {};
+      if (targetPlaylist && playlists[targetPlaylist]) {
+        setPlaylistName(targetPlaylist);
+        setTrackIndex(targetIndex);
+        setProgress(0);
+        setElapsed(0);
+        ambientEngine.stopAllVoices();
+        ambientEngine.playRadioTuningStatic();
+        window.setTimeout(() => {
+          const song = playlists[targetPlaylist]?.[targetIndex];
+          const p = playerRef.current;
+          if (p && song?.videoId && typeof p.loadVideoById === "function") {
+            p.loadVideoById(song.videoId);
+            p.playVideo();
+            setPlaying(true);
+          }
+        }, 150);
+      }
+    };
+
+    const handleVoiceDuck = () => {
+      const p = playerRef.current;
+      if (p && typeof p.setVolume === "function") {
+        p.setVolume(20);
+      }
+    };
+
+    const handleVoiceUnduck = () => {
+      const p = playerRef.current;
+      if (p && typeof p.setVolume === "function") {
+        p.setVolume(100);
+      }
+    };
+
+    window.addEventListener("voice-command-play", handleVoicePlay);
+    window.addEventListener("voice-command-pause", handleVoicePause);
+    window.addEventListener("voice-command-next", handleVoiceNext);
+    window.addEventListener("voice-command-prev", handleVoicePrev);
+    window.addEventListener("voice-command-restart", handleVoiceRestart);
+    window.addEventListener("voice-command-duck", handleVoiceDuck);
+    window.addEventListener("voice-command-unduck", handleVoiceUnduck);
+    window.addEventListener("voice-command-select-playlist", handleVoiceSelectPlaylist);
+    window.addEventListener("voice-command-select-track", handleVoiceSelectTrack);
+
+    return () => {
+      window.removeEventListener("voice-command-play", handleVoicePlay);
+      window.removeEventListener("voice-command-pause", handleVoicePause);
+      window.removeEventListener("voice-command-next", handleVoiceNext);
+      window.removeEventListener("voice-command-prev", handleVoicePrev);
+      window.removeEventListener("voice-command-restart", handleVoiceRestart);
+      window.removeEventListener("voice-command-duck", handleVoiceDuck);
+      window.removeEventListener("voice-command-unduck", handleVoiceUnduck);
+      window.removeEventListener("voice-command-select-playlist", handleVoiceSelectPlaylist);
+      window.removeEventListener("voice-command-select-track", handleVoiceSelectTrack);
+    };
+  }, [changePlaylist, next, previous, seek]);
+
   const cbRef = useRef({ syncProgress, startTicker, stopTicker, next });
   useEffect(() => { cbRef.current = { syncProgress, startTicker, stopTicker, next }; });
 
@@ -314,43 +464,6 @@ export default function MusicPlayer(_: Props) {
     setProgress(0);
     setElapsed(0);
   }, [current?.videoId]);
-
-  const seek = useCallback((value: number) => {
-    const target = (playerRef.current?.getDuration() || duration || current?.duration || 0) * value;
-    if (playerRef.current && target >= 0 && typeof playerRef.current.seekTo === "function") {
-      playerRef.current.seekTo(target, true);
-      setElapsed(target);
-      setProgress(value);
-    }
-  }, [current?.duration, duration]);
-
-  const togglePlay = useCallback(() => {
-    const p = playerRef.current;
-    if (!p || !current?.videoId) return;
-    if (typeof p.playVideo !== "function") return;
-    try {
-      const state = typeof p.getPlayerState === "function" ? p.getPlayerState() : -1;
-      if (state === window.YT?.PlayerState.PLAYING) {
-        p.pauseVideo();
-      } else {
-        p.playVideo();
-      }
-    } catch {
-      p.playVideo();
-    }
-  }, [current?.videoId]);
-
-  const changePlaylist = (name: string) => {
-    ambientEngine.stopAllVoices();
-    ambientEngine.playCassetteClick();
-    ambientEngine.playRadioTuningStatic();
-    setPlaylistName(name);
-    setTrackIndex(0);
-    setPlaying(false);
-    setProgress(0);
-    setElapsed(0);
-    setDuration(0);
-  };
 
   const playlistOptions = useMemo(() => PLAYLISTS.map(([name]) => name), []);
 
